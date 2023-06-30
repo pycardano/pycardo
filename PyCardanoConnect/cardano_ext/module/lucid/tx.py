@@ -1,7 +1,7 @@
-from core.mod import C
-from lucid import Lucid
-from plutus.data import Data
-from utlis.utils import fromHex, utxoToCore
+from ..core.mod import C
+from .lucid import Lucid
+from ..plutus.data import Data
+from ..utlis.utils import fromHex, utxoToCore
 
 
 class Tx:

@@ -1,4 +1,4 @@
-from core.mod import C
+from ..core.mod import C
 
 
 def create_cost_models(cost_models):

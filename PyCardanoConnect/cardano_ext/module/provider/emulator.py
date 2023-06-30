@@ -1,8 +1,8 @@
-from core.mod import C
+from ..core.mod import C
 import datetime
-from utlis.cost_model import PROTOCOL_PARAMETERS_DEFAULT
+from ..utlis.cost_model import PROTOCOL_PARAMETERS_DEFAULT
 from typing import Dict,  Union, Any, Optional
-from utlis.utils import getAddressDetails 
+from ..utlis.utils import getAddressDetails 
 
 
 class Delegation:

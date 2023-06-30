@@ -6,11 +6,10 @@ import traceback
 import re
 import wasmtime
 import bech32
+import wasm
 
 
-
-
-from .node.cardano_multiplatform import wasm
+from .wasms import wasm_fun
 
 
 
@@ -243,39 +242,61 @@ def make_mut_closure(arg0, arg1, dtor, f):
 
 
 # address class
-import atexit
+# import atexit
 
-# Define a list to keep track of the pointers that need to be freed
-address_pointers = []
-from .node.cardano_multiplatform import wasm
-# Define a function to free the memory associated with the pointers
-def free_addresses():
-    for ptr in address_pointers:
-        wasm.__wbindgen_closure_wrapper5962(ptr)
+# # Define a list to keep track of the pointers that need to be freed
+# address_pointers = []
+# # Define a function to free the memory associated with the pointers
+# def free_addresses():
+#     for ptr in address_pointers:
+#         wasm.__wbindgen_closure_wrapper5962(ptr)
 
-# Register the function to be called at program exit
-atexit.register(free_addresses)
+# # Register the function to be called at program exit
+# atexit.register(free_addresses)
 
-# When you create a new address and obtain its pointer, add it to the list
-address_ptr = wasm.__getattribute__()
-print("=========================================================",type(address_ptr))
+# # When you create a new address and obtain its pointer, add it to the list
+# address_ptr = wasm.__wbindgen_closure_wrapper5962()
 
-address_pointers.append(address_ptr)
+# address_pointers.append(address_ptr)
 
-# Use the address pointer as needed
+# # Use the address pointer as needed
 
-# When the address is no longer needed, remove it from the list
-address_pointers.remove(address_ptr)
+# # When the address is no longer needed, remove it from the list
+# address_pointers.remove(address_ptr)
+
+
+
+class AddressFinalization:
+    def __init__(self, cleanup_fn):
+        self.cleanup_fn = cleanup_fn
+        self.refs = weakref.WeakValueDictionary()
+
+    def register(self, obj, ptr):
+        self.refs[ptr] = obj
+
+    def unregister(self, ptr):
+        if ptr in self.refs:
+            del self.refs[ptr]
+
+    def cleanup(self):
+        for ptr in self.refs.keys():
+            self.cleanup_fn(ptr)
 
 
 class Address:
     def __init__(self, ptr):
         self.ptr = ptr
+        AddressFinalization.register(self, self.ptr)
 
-    def wrap_address(ptr):
-        address = Address(ptr)
-        print("Finalizing Address:", address.ptr)
-        return address
+    def __destroy_into_raw(self):
+        ptr = self.ptr
+        self.ptr = 0
+        AddressFinalization.unregister(self)
+        return ptr
+
+    def free(self):
+        ptr = self.__destroy_into_raw()
+        wasm.__wbg_address_free(ptr)
 
 
     def from_bytes(data):
@@ -363,8 +384,12 @@ def free_ed25519_key_hash(ptr):
     wasm.__wbg_ed25519keyhash_free(ptr)
 
 # Create the finalization registry
-Ed25519KeyHashFinalization = ctypes.finalizer(free_ed25519_key_hash)
+class Ed25519KeyHashFinalization:
+    def __init__(self, obj, ptr):
+        self.finalizer = weakref.finalize(obj, free_ed25519_key_hash, ptr)
 
+    def unregister(self):
+        self.finalizer.detach()
 import ctypes
 import array
 
@@ -481,12 +506,17 @@ def getArrayU8FromWasm0(ptr, length):
 
 
     
-def free_script_hash(ptr):
+def free_ed25519_key_hash(ptr):
     # Call the appropriate cleanup function
-    wasm.__wbg_scripthash_free(ptr)
+    wasm.__wbg_ed25519keyhash_free(ptr)
 
 # Create the finalization registry
-ScriptHashFinalization = ctypes.finalizer(free_script_hash)    
+class ScriptHashFinalization:
+    def __init__(self, obj, ptr):
+        self.finalizer = weakref.finalize(obj, free_ed25519_key_hash, ptr)
+
+    def unregister(self):
+        self.finalizer.detach()   
 
 
 class ScriptHash:
@@ -1866,21 +1896,25 @@ class PrivateKey:
 
     def free(self):
         ptr = self.__destroy_into_raw()
-        wasm.__wbg_privatekey_free(ptr)
+        wasm_fun.__wbg_privatekey_free(ptr)
 
     @staticmethod
     def generate_ed25519():
+        print("-----------------------------------generated fun call")
+        # wasm_fun.wbindgen_global_argument_ptr(retptr)
+
         try:
-            retptr = wasm.__wbindgen_add_to_stack_pointer(-16)
-            wasm.privatekey_generate_ed25519(retptr)
-            r0 = get_int32_memory0()[int(retptr / 4) + 0]
+            retptr = wasm_fun.wbindgen_add_to_stack_pointer(-16)
+            wasm_fun.wbindgen_global_argument_ptr(retptr)
+            wasm_fun.privatekey_generate_ed25519()
+            r0 = wasm_fun.wbindgen_global_argument_ptr()
             r1 = get_int32_memory0()[int(retptr / 4) + 1]
             r2 = get_int32_memory0()[int(retptr / 4) + 2]
             if r2:
                 raise take_object(r1)
             return PrivateKey.__wrap(r0)
         finally:
-            wasm.__wbindgen_add_to_stack_pointer(16)
+            wasm_fun.wbindgen_add_to_stack_pointer(16)
 
     
 # TransactionUnspent

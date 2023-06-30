@@ -1,12 +1,12 @@
-from core.mod import C
+from ..core.mod import C
 from typing import Optional
-from provider.emulator import Emulator
-from plutus.time import SLOT_CONFIG_NETWORK
-from utlis.cost_model import create_cost_models
-from utlis.utils import Utils
-from type.type import UTxO ,Provider
-from plutus.data import Data
-from tx import Tx
+from ..provider.emulator import Emulator
+from ..plutus.time import SLOT_CONFIG_NETWORK
+from ..utlis.cost_model import create_cost_models
+from ..utlis.utils import Utils
+from ..type.type import UTxO ,Provider
+from ..plutus.data import Data
+# from .lucid import Tx
 
 
 class Lucid:
@@ -80,8 +80,8 @@ class Lucid:
         self.wallet = lucid.wallet
         return self
     
-    def newTx(self) -> Tx:
-        return Tx(self)
+    # def newTx(self) -> Tx:
+    #     return Tx(self)
     
     # add tx functions
 

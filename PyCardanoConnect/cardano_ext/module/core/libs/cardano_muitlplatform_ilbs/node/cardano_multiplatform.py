@@ -144,7 +144,7 @@ def make_mut_closure(arg0, arg1, dtor, f):
         finally:
             if state['cnt'] == 0:
                 wasm.__wbindgen_export_2.get(state['dtor'])(a, state['b'])
-                CLOSURE_DTORS.unregister(state)
+                CLOSURE_DTORS.o(state)
             else:
                 state['a'] = a
 
@@ -202,12 +202,11 @@ output_type = wasmtime.ValType.i32()
 # Define the function type
 func_type = wasmtime.FuncType([input_type], [output_type])
 wrapper_func = wasmtime.Func(store, func_type, __wbindgen_closure_wrapper5962)
-
 imports = {
     "__wbindgen_closure_wrapper5962": wrapper_func,
 }
 
-
+    
 print("wasm module --------------------",type(wasm_module))
 print("imports ----------------------------",type(imports))
 print("store-------------------------------",type(store))
@@ -216,8 +215,7 @@ wasm_instance = wasmtime.Instance(module=wasm_module, imports=imports, store=sto
 print("zzzzzzzzzzzzzzzzzzzzzzzz",wasm_instance)
 wasm = wasm_instance.exports
 print("-----------------------------------------------------",type(wasm))
-
 __wasm = wasm
 
 
-
+ 

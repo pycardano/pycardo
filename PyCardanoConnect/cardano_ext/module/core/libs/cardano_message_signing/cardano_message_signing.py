@@ -1,6 +1,5 @@
 
 import codecs
-import memoryview
 import numpy as np
 import json
 import traceback
@@ -10,9 +9,9 @@ import re
 wasm = None
 
 
-cached_text_decoder = codecs.getincrementaldecoder("utf-8")(errors='strict', byteorder='big')
-
-decoded_data = cached_text_decoder.decode()
+cached_text_decoder = codecs.getincrementaldecoder("utf-8")(errors='strict')
+encoded_bytes = b'\xc3\xa9\xc3\xa7\xc3\xa0'
+decoded_data = cached_text_decoder.decode(encoded_bytes)
 
 cached_unit_memory0 = None
 
