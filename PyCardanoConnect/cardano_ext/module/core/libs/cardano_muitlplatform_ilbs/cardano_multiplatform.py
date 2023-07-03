@@ -126,9 +126,12 @@ def pass_string_to_wasm0(arg, malloc, realloc=None):
 cached_int32_memory0 = None
 
 def get_int32_memory0():
+
+    buffer = memoryview(b'\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00')
     global cached_int32_memory0
     if cached_int32_memory0 is None or cached_int32_memory0.nbytes == 0:
-        cached_int32_memory0 = np.array(wasm.memory.buffer, dtype=np.int32)
+        cached_int32_memory0 = np.frombuffer(buffer, dtype=np.int32)
+
     return cached_int32_memory0
 
 def is_like_none(x):
@@ -1880,13 +1883,23 @@ class PrivateKeyFinalization:
         for obj, ptr in self.weakrefs.values():
             self.callback(ptr)
 
+class TakeObjectException(Exception):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
+
+
 class PrivateKey:
+    def __init__(self, ptr=None):
+        self.ptr = ptr
     @staticmethod
-    def __wrap(ptr):
-        obj = PrivateKey()
-        obj.ptr = ptr
-        PrivateKeyFinalization.register(obj, obj.ptr, obj)
+    def __wrap(cls, ptr):
+        obj = cls(ptr)
+        PrivateKeyFinalization.register(obj, ptr, obj)
         return obj
+
 
     def __destroy_into_raw(self):
         ptr = self.ptr
@@ -1897,6 +1910,34 @@ class PrivateKey:
     def free(self):
         ptr = self.__destroy_into_raw()
         wasm_fun.__wbg_privatekey_free(ptr)
+
+
+    
+
+    def to_bech32(self, prefix):
+        try:
+            retptr = wasm_fun.wbindgen_add_to_stack_pointer(-16)
+            ptr0 = pass_string_to_wasm0(
+                prefix,
+                wasm_fun.wbindgen_malloc,
+                wasm_fun.wbindgen_realloc,
+            )
+            len0 = WASM_VECTOR_LEN
+            wasm.auxiliarydatahash_to_bech32(retptr, self.ptr, ptr0, len0)
+            r0 = get_int32_memory0()[int(retptr / 4 + 0)]
+            r1 = get_int32_memory0()[int(retptr / 4 + 1)]
+            r2 = get_int32_memory0()[int(retptr / 4 + 2)]
+            r3 = get_int32_memory0()[int(retptr / 4 + 3)]
+            ptr1 = r0
+            len1 = r1
+            if r3:
+                ptr1 = 0
+                len1 = 0
+                raise take_object(r2)
+            return get_string_from_wasm0(ptr1, len1)
+        finally:
+            wasm_fun.wbindgen_add_to_stack_pointer(16)
+            wasm_fun.__wbindgen_free(ptr1, len1)
 
     @staticmethod
     def generate_ed25519():
@@ -1911,10 +1952,18 @@ class PrivateKey:
             r1 = get_int32_memory0()[int(retptr / 4) + 1]
             r2 = get_int32_memory0()[int(retptr / 4) + 2]
             if r2:
-                raise take_object(r1)
-            return PrivateKey.__wrap(r0)
+                raise TakeObjectException(r1)
+            private_key = PrivateKey(r0)
+            PrivateKeyFinalization.register(private_key, r0, private_key)
+            return private_key
+            # return PrivateKey.__wrap(r0)
+        except TakeObjectException as e:
+    # Handle the exception
+            print("TakeObjectException occurred with value:", e.value)
         finally:
             wasm_fun.wbindgen_add_to_stack_pointer(16)
+
+
 
     
 # TransactionUnspent

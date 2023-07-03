@@ -1,6 +1,7 @@
 # Python Cardano Blockchain Package
 
-This Python package provides a convenient interface for interacting with the Cardano blockchain. It allows you to perform various tasks.
+This Python package provides a convenient interface for interacting with the Cardano blockchain. It allows you to perform various tasks and a convenient and secure way to create Cardano transactions and off-chain code. Previously, developers who wanted to create Cardano applications had to use the Cardano CLI, which is a command-line tool that can be difficult to use and insecure. Lucid Cardano provides a high-level API that makes it easy to interact with Cardano data, and it can be run pretty much anywhere. This makes it a much more convenient and secure way to develop Cardano applications.
+
 
 ## Features
 

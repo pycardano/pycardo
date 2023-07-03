@@ -213,9 +213,9 @@ print("store-------------------------------",type(store))
 
 wasm_instance = wasmtime.Instance(module=wasm_module, imports=imports, store=store)
 print("zzzzzzzzzzzzzzzzzzzzzzzz",wasm_instance)
-wasm = wasm_instance.exports
+wasms = wasm_instance.exports
 print("-----------------------------------------------------",type(wasm))
-__wasm = wasm
+__wasms = wasms
 
 
  

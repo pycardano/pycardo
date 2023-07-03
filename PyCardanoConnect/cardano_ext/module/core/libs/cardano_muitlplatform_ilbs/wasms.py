@@ -1,6 +1,9 @@
 from nacl.public import PrivateKey
 
 class wasm_fun:
+    memory = bytearray()  # The memory buffer to store allocated memory
+    memory_offset = 0 
+
     stack_pointer = 0  # Initial stack pointer value
 
     @staticmethod
@@ -39,3 +42,38 @@ class wasm_fun:
 
         # Return the new stack pointer value
         return new_stack_pointer
+    
+
+    def wbindgen_malloc(size):
+        if size <= 0:
+            return 0 
+        if wasm_fun.memory_offset + size > len(wasm_fun.memory):
+        # If not, expand the memory buffer by doubling its size
+            new_size = max(wasm_fun.memory_offset + size, 2 * len(wasm_fun.memory))
+            wasm_fun.memory += bytearray(new_size - len(wasm_fun.memory))
+
+        # Allocate memory at the current offset
+        ptr = wasm_fun.memory_offset
+        wasm_fun.memory_offset += size
+
+        return ptr
+    
+    def wbindgen_realloc(ptr, size):
+        if size <= 0:
+            return 0  # Return null pointer for zero-sized reallocations
+
+        # If the given pointer is already at the end of the allocated memory,
+        # simply extend the allocated memory to accommodate the new size
+        if ptr == wasm_fun.memory_offset:
+            wasm_fun.memory_offset += size
+            return ptr
+
+        # Otherwise, perform a new allocation and copy the existing data to the new location
+        new_ptr = wasm_fun.wbindgen_malloc(size)
+        if ptr != 0:
+            # Copy the existing data to the new location
+            wasm_fun.memory[new_ptr:new_ptr+size] = wasm_fun.memory[ptr:ptr+size]
+        return new_ptr
+    
+    
+        
