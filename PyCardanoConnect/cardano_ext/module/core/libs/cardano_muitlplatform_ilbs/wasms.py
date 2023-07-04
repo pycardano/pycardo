@@ -1,4 +1,5 @@
 from nacl.public import PrivateKey
+import ctypes
 
 class wasm_fun:
     memory = bytearray()  # The memory buffer to store allocated memory
@@ -6,13 +7,31 @@ class wasm_fun:
 
     stack_pointer = 0  # Initial stack pointer value
 
+    def copy_to_python_memory(source, dest, dest_start):
+        for i in range(len(source)):
+            dest[dest_start + i] = source[i]
+
+
+
+
     @staticmethod
     def privatekey_generate_ed25519():
         # Generate a new Ed25519 private key
         private_key = PrivateKey.generate()
+        print("private key generated in wasm file", private_key)
 
-        # Return the private key as a bytes object
-        return private_key.encode()
+        # Encode the private key to bytes
+        private_key_bytes = private_key.encode()
+
+        # Copy the private key data to a Python memory buffer
+        memory_buffer = bytearray(len(private_key_bytes))
+        wasm_fun.copy_to_python_memory(private_key_bytes, memory_buffer, 0)
+
+        # Return the pointer to the private key data (memory buffer)
+        print("private-----------------------", memory_buffer)
+
+        return memory_buffer
+
     
 
     @staticmethod
@@ -22,7 +41,7 @@ class wasm_fun:
         if new_value is not None:
             # Update the stack pointer with the new value
             stack_pointer = new_value
-
+            print("stack_pointer",stack_pointer)
         # Return the current stack pointer value
             return stack_pointer
 
@@ -39,8 +58,8 @@ class wasm_fun:
 
         # Update the stack pointer
         wasm_fun.wbindgen_global_argument_ptr(new_stack_pointer)
-
-        # Return the new stack pointer value
+        print("new_stack_pointer",new_stack_pointer)
+        # Return   the new stack pointer value
         return new_stack_pointer
     
 
@@ -55,7 +74,7 @@ class wasm_fun:
         # Allocate memory at the current offset
         ptr = wasm_fun.memory_offset
         wasm_fun.memory_offset += size
-
+        print("ptr",ptr)
         return ptr
     
     def wbindgen_realloc(ptr, size):
@@ -66,6 +85,8 @@ class wasm_fun:
         # simply extend the allocated memory to accommodate the new size
         if ptr == wasm_fun.memory_offset:
             wasm_fun.memory_offset += size
+            print("ptr",ptr)
+
             return ptr
 
         # Otherwise, perform a new allocation and copy the existing data to the new location
@@ -73,7 +94,17 @@ class wasm_fun:
         if ptr != 0:
             # Copy the existing data to the new location
             wasm_fun.memory[new_ptr:new_ptr+size] = wasm_fun.memory[ptr:ptr+size]
+        print("ptr",ptr)
+
         return new_ptr
+    
+
+    def wbindgen_free(ptr, length):
+        libc = ctypes.CDLL("libc.so.6")  # Assuming a Unix-like system
+        libc.free(ptr)
+
+
+
     
     
         

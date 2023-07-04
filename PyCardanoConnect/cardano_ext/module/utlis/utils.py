@@ -370,7 +370,10 @@ def utxoToCore(utxo):
 
 
 def generate_private_key():
-      return C.PrivateKey.generate_ed25519().to_bech32()
+    private_key = C.PrivateKey.generate_ed25519()
+    print("private key in utils filr fi",private_key)
+    bech32_key = private_key.to_bech32()
+    return bech32_key
 
 
 
