@@ -370,9 +370,10 @@ def utxoToCore(utxo):
 
 
 def generate_private_key():
+    print("000000000000000000000000000000000000000000000 funcal cal")
     private_key = C.PrivateKey.generate_ed25519()
-    print("private key in utils filr fi",private_key)
-    bech32_key = private_key.to_bech32()
+    bech32_key = C.PrivateKey.to_bech32(private_key,"ckb")
+    print("private key in utils filr fi[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]",bech32_key)
     return bech32_key
 
 

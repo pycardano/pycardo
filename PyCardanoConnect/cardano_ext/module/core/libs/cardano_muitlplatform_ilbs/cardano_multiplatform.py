@@ -38,7 +38,7 @@ def get_unit8_memory0():
     global cached_unit_memory0
 
     if cached_unit_memory0 is None or len(cached_unit_memory0) == 0:
-        cached_unit_memory0 = memoryview(wasm.memory)
+        cached_unit_memory0 = memoryview(wasm_fun.memory)
     return cached_unit_memory0
 
 def get_string_from_wasm0(ptr, length):
@@ -87,9 +87,11 @@ WASM_VECTOR_LEN = 0
 cached_text_encoder = codecs.getincrementalencoder("utf-8")()
 
 def encode_string(arg, view):
-    encoded_data, bytes_written, _ = cached_text_encoder.encode(arg, final=True)
-    view[:bytes_written] = encoded_data
-    return bytes_written
+    encoded_data = cached_text_encoder.encode(arg, final=True)
+    view[:len(encoded_data)] = encoded_data
+    return len(encoded_data)
+
+
 
 def pass_string_to_wasm0(arg, malloc, realloc=None):
     global WASM_VECTOR_LEN
@@ -117,7 +119,7 @@ def pass_string_to_wasm0(arg, malloc, realloc=None):
     if offset != len_arg:
         if offset != 0:
             arg = arg[offset:]
-        ptr = realloc(ptr, len_arg, len_arg = offset + len(arg) * 3)
+        ptr = realloc(ptr, len_arg)
         view = get_unit8_memory0()[ptr + offset : ptr + len_arg]
         ret = encode_string(arg, view)
         offset += ret
@@ -125,11 +127,12 @@ def pass_string_to_wasm0(arg, malloc, realloc=None):
     WASM_VECTOR_LEN = offset
     return ptr
 
+
 cached_int32_memory0 = None
 
 def get_int32_memory0():
 
-    buffer = memoryview(b'\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00')
+    buffer = memoryview(wasm_fun.memory)
     global cached_int32_memory0
     if cached_int32_memory0 is None or cached_int32_memory0.nbytes == 0:
         cached_int32_memory0 = np.frombuffer(buffer, dtype=np.int32)
@@ -1949,59 +1952,90 @@ class PrivateKey:
         finally:
             wasm_fun.wbindgen_add_to_stack_pointer(16)
     
-    
+    def calculate_bech32_checksum(data):
+        """Calculates the bech32 checksum for a string."""
+        checksum = 0
+        for i in range(0, len(data), 8):
+            byte_str = data[i : i + 8]
+            val = int.from_bytes(byte_str, "big")
+            checksum = (checksum + val) % 256
+        checksum_bytes = [checksum % 256, (checksum >> 8) % 256]
+        checksum_str = format(checksum_bytes[0], "02x") + format(checksum_bytes[1], "02x")
+        return checksum_str
+    def auxiliarydatahash_to_bech32(ptr, prefix, length):
+        print("auxiliarydatahash_to_bech32",ptr, prefix, length)
+        """Converts an auxiliary data hash to a bech32 string."""
+        data_hash = get_string_from_wasm0(ptr, length)
+        encoded = ""
+        for i in range(0, length, 8):
+            byte_str = data_hash[i : i + 8]
+            hex_str = format(int.from_bytes(byte_str.encode(), "big"), "02x")
+            encoded += hex_str
+        checksum = PrivateKey.calculate_bech32_checksum(encoded.encode())
+        print("+++++++++++++++++++++++++++++++",str(prefix) + encoded + checksum)
+        return str(prefix) + encoded + checksum
+
+
+
+
 
 
     
 
     def to_bech32(self, prefix):
+        print("prefix---",prefix)
+        ptr1 = None
+        len1 = None
         try:
             retptr = wasm_fun.wbindgen_add_to_stack_pointer(-16)
+            print("111111111111111111111111111111",retptr)
             ptr0 = pass_string_to_wasm0(
                 prefix,
                 wasm_fun.wbindgen_malloc,
                 wasm_fun.wbindgen_realloc,
             )
-            len0 = WASM_VECTOR_LEN
-            wasm.auxiliarydatahash_to_bech32(retptr, self.ptr, ptr0, len0)
-            r0 = get_int32_memory0()[int(retptr / 4 + 0)]
-            r1 = get_int32_memory0()[int(retptr / 4 + 1)]
-            r2 = get_int32_memory0()[int(retptr / 4 + 2)]
-            r3 = get_int32_memory0()[int(retptr / 4 + 3)]
-            ptr1 = r0
-            len1 = r1
-            if r3:
-                ptr1 = 0
-                len1 = 0
-                raise take_object(r2)
-            return get_string_from_wasm0(ptr1, len1)
+            print("2222222222222222222222222",ptr0)
+
+            len0 = len(prefix)
+            print("3333333333333333333333333333333",len0)
+
+            length = 32  # Renamed the variable to 'length'
+            result = PrivateKey.auxiliarydatahash_to_bech32(ptr0, len0, length)
+            print("44444444444444444444444444444",result)
+
+            if result != 0:
+                ptr1 = get_string_from_wasm0(ptr0, len0)
+                len1 = len0
+            else:
+                raise Exception("Failed to convert auxiliary data hash to bech32")
+            print("mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm")
+            return ptr1
         finally:
             wasm_fun.wbindgen_add_to_stack_pointer(16)
             wasm_fun.wbindgen_free(ptr1, len1)
 
+
+
+
+
+
+
     @staticmethod
     def generate_ed25519():
         try:
-            # Allocate memory for the private key
+           # Allocate a memory buffer for the private key
             key_ptr = wasm_fun.wbindgen_malloc(64)
-            print("key_ptr in generate_ed25519",key_ptr)
 
             # Call the privatekey_generate_ed25519() WebAssembly function
-            wasm_fun.privatekey_generate_ed25519()
+            private_key = wasm_fun.privatekey_generate_ed25519()
 
-            # Get the private key bytes from the allocated memory
-            private_key_bytes = get_int32_memory0()[key_ptr:key_ptr + 64]
-            print("private_key_bytes",private_key_bytes)
+            # Convert the memory buffer to a PrivateKey object
+            # private_key = PrivateKey.from_bytes(get_int32_memory0()[key_ptr:key_ptr + 64])
 
-            # Create a PrivateKey object from the generated bytes
-            private_key = PrivateKey.from_bytes(private_key_bytes)
-            print("private_keyiiiiiiiiiiiiiii",private_key)
+            # # Get the bech32 representation of the private key
+            # bech32_key = PrivateKey.to_bech32(private_key)
 
-
-            # Register the PrivateKey object for finalization
-            PrivateKeyFinalization.register(private_key)
-
-            print("private key generated:", private_key)
+            # Return the bech32 representation of the private key
             return private_key
         except Exception as e:
             # Handle the exception

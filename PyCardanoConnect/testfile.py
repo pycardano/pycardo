@@ -1,90 +1,37 @@
-from typing import Optional
+import requests
+import json
 
+def create_cardano_wallet(name, mnemonic):
+    # Specify the Cardano Wallet API endpoint
+    api_url = 'https://cardano-wallet-api-url/v2/wallets'
 
-class Utils:
-    def __init__(self, lucid):
-        self.lucid = lucid
+    # Prepare the payload for creating a new wallet
+    payload = {
+        "name": name,
+        "mnemonic_sentence": mnemonic,
+        "passphrase": ""
+    }
 
-    def validatorToAddress(
-        self, validator, stakeCredential: Optional[str] = None
-    ):
-        validatorHash = self.validatorToScriptHash(validator)
-        if stakeCredential:
-            return C.BaseAddress.new(
-                networkToId(self.lucid.network),
-                C.StakeCredential.from_scripthash(C.ScriptHash.from_hex(validatorHash)),
-                C.StakeCredential.from_keyhash(
-                    C.Ed25519KeyHash.from_hex(stakeCredential.hash)
-                )
-                if stakeCredential.type == "Key"
-                else C.StakeCredential.from_scripthash(
-                    C.ScriptHash.from_hex(stakeCredential.hash)
-                ),
-            ).to_address().to_bech32(None)
+    try:
+        # Send a POST request to create the wallet
+        response = requests.post(api_url, json=payload)
+        
+        # Check the response status code
+        if response.status_code == 201:
+            wallet_data = response.json()
+            wallet_id = wallet_data['id']
+            print(f"Wallet created successfully! Wallet ID: {wallet_id}")
         else:
-            return C.EnterpriseAddress.new(
-                networkToId(self.lucid.network),
-                C.StakeCredential.from_scripthash(C.ScriptHash.from_hex(validatorHash)),
-            ).to_address().to_bech32(None)
+            print("Failed to create the wallet.")
+            print(f"Status Code: {response.status_code}")
+            print(f"Response: {response.text}")
 
-    def credentialToAddress(
-        self, paymentCredential, stakeCredential: Optional[str] = None
-    ):
-        if stakeCredential:
-            return C.BaseAddress.new(
-                networkToId(self.lucid.network),
-                C.StakeCredential.from_keyhash(
-                    C.Ed25519KeyHash.from_hex(paymentCredential.hash)
-                )
-                if paymentCredential.type == "Key"
-                else C.StakeCredential.from_scripthash(
-                    C.ScriptHash.from_hex(paymentCredential.hash)
-                ),
-                C.StakeCredential.from_keyhash(
-                    C.Ed25519KeyHash.from_hex(stakeCredential.hash)
-                )
-                if stakeCredential.type == "Key"
-                else C.StakeCredential.from_scripthash(
-                    C.ScriptHash.from_hex(stakeCredential.hash)
-                ),
-            ).to_address().to_bech32(None)
-        else:
-            return C.EnterpriseAddress.new(
-                networkToId(self.lucid.network),
-                C.StakeCredential.from_keyhash(
-                    C.Ed25519KeyHash.from_hex(paymentCredential.hash)
-                )
-                if paymentCredential.type == "Key"
-                else C.StakeCredential.from_scripthash(
-                    C.ScriptHash.from_hex(paymentCredential.hash)
-                ),
-            ).to_address().to_bech32(None)
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
 
-    def validatorToRewardAddress(self, validator):
-        validatorHash = self.validatorToScriptHash(validator)
-        return C.RewardAddress.new(
-            networkToId(self.lucid.network),
-            C.StakeCredential.from_scripthash(C.ScriptHash.from_hex(validatorHash)),
-        ).to_address().to_bech32(None)
 
-    def credentialToRewardAddress(self, stakeCredential):
-        return C.RewardAddress.new(
-            networkToId(self.lucid.network),
-            C.StakeCredential.from_keyhash(
-                C.Ed25519KeyHash.from_hex(stakeCredential.hash)
-            )
-            if stakeCredential.type == "Key"
-            else C.StakeCredential.from_scripthash(
-                C.ScriptHash.from_hex(stakeCredential.hash)
-            ),
-        ).to_address().to_bech32(None)
+# Example usage:
+wallet_name = "MyCardanoWallet"
+mnemonic_phrase = "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12"
 
-    def validatorToScriptHash(self, validator):
-        if validator.type == "Native":
-            return C.NativeScript.from_bytes(fromHex(validator.script)).hash(
-                C.ScriptHashNamespace.NativeScript
-            ).to_hex()
-        elif validator.type == "PlutusV1":
-            return C.PlutusScript.from_bytes(
-                fromHex(applyDoubleCborEncoding(validator.script))
-            ).hash(C
+create_cardano_wallet(wallet_name, mnemonic_phrase)

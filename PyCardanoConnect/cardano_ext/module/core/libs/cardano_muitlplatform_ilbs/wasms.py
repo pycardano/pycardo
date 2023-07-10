@@ -1,5 +1,7 @@
 from nacl.public import PrivateKey
 import ctypes
+import numpy as np
+
 
 class wasm_fun:
     memory = bytearray()  # The memory buffer to store allocated memory
@@ -7,14 +9,25 @@ class wasm_fun:
 
     stack_pointer = 0  # Initial stack pointer value
 
+    import ctypes
+
     def copy_to_python_memory(source, dest, dest_start):
+        # Create a new memory buffer
+        new_memory_buffer = bytearray(len(source))
+        print("new_memory_buffer---",new_memory_buffer)
+
+        # Copy the data from the source buffer to the new memory buffer
         for i in range(len(source)):
-            dest[dest_start + i] = source[i]
+            new_memory_buffer[i] = source[i]
+
+        # Return the pointer to the new memory buffer
+        return new_memory_buffer
 
 
 
 
-    @staticmethod
+
+
     def privatekey_generate_ed25519():
         # Generate a new Ed25519 private key
         private_key = PrivateKey.generate()
@@ -26,11 +39,18 @@ class wasm_fun:
         # Copy the private key data to a Python memory buffer
         memory_buffer = bytearray(len(private_key_bytes))
         wasm_fun.copy_to_python_memory(private_key_bytes, memory_buffer, 0)
+        print("the funcal of ",memory_buffer)
+        # Create a new memory buffer
+        new_memory_buffer = bytearray(len(private_key_bytes))
 
-        # Return the pointer to the private key data (memory buffer)
-        print("private-----------------------", memory_buffer)
+        # Copy the data from the old memory buffer to the new memory buffer
+        for i in range(len(private_key_bytes)):
+            new_memory_buffer[i] = memory_buffer[i]
 
-        return memory_buffer
+        # Return the pointer to the new memory buffer
+        return new_memory_buffer
+
+
 
     
 
@@ -81,8 +101,7 @@ class wasm_fun:
         if size <= 0:
             return 0  # Return null pointer for zero-sized reallocations
 
-        # If the given pointer is already at the end of the allocated memory,
-        # simply extend the allocated memory to accommodate the new size
+        
         if ptr == wasm_fun.memory_offset:
             wasm_fun.memory_offset += size
             print("ptr",ptr)
@@ -104,7 +123,15 @@ class wasm_fun:
         libc.free(ptr)
 
 
+    def wbindgen_export_buffer(key_ptr):
+        # Store the pointer to the memory buffer in a global variable
+        global exported_buffer_ptr
+        exported_buffer_ptr = key_ptr
+
+        # Return the pointer to the exported buffer
+        return exported_buffer_ptr
+    
+    
+    
 
     
-    
-        

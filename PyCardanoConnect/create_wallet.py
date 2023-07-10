@@ -13,5 +13,7 @@ asyncio.run(some_function())
 
 private_key = generate_private_key()
 
+print("=================================================final private key",private_key)
+
 with open("generatePrivateKey-1.sk", "w") as file:
     file.write(private_key)
