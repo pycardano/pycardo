@@ -35,20 +35,23 @@ class wasm_fun:
 
         # Encode the private key to bytes
         private_key_bytes = private_key.encode()
+        print("private key private_key_bytes", private_key_bytes)
 
-        # Copy the private key data to a Python memory buffer
-        memory_buffer = bytearray(len(private_key_bytes))
-        wasm_fun.copy_to_python_memory(private_key_bytes, memory_buffer, 0)
-        print("the funcal of ",memory_buffer)
-        # Create a new memory buffer
-        new_memory_buffer = bytearray(len(private_key_bytes))
+        # # Copy the private key data to a Python memory buffer
+        # memory_buffer = bytearray(len(private_key_bytes))
+        # print("memory_buffer...................", memory_buffer)
 
-        # Copy the data from the old memory buffer to the new memory buffer
-        for i in range(len(private_key_bytes)):
-            new_memory_buffer[i] = memory_buffer[i]
+        # wasm_fun.copy_to_python_memory(private_key_bytes, memory_buffer, 0)
+        # # print("the funcal of ",memory_buffer)
+        # # Create a new memory buffer
+        # new_memory_buffer = bytearray(len(private_key_bytes))
+
+        # # Copy the data from the old memory buffer to the new memory buffer
+        # for i in range(len(private_key_bytes)):
+        #     new_memory_buffer[i] = memory_buffer[i]
 
         # Return the pointer to the new memory buffer
-        return new_memory_buffer
+        return private_key_bytes
 
 
 
@@ -130,8 +133,6 @@ class wasm_fun:
 
         # Return the pointer to the exported buffer
         return exported_buffer_ptr
-    
-    
     
 
     

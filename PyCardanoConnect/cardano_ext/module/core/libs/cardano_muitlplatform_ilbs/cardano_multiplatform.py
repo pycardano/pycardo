@@ -1983,36 +1983,39 @@ class PrivateKey:
     
 
     def to_bech32(self, prefix):
-        print("prefix---",prefix)
         ptr1 = None
         len1 = None
-        try:
-            retptr = wasm_fun.wbindgen_add_to_stack_pointer(-16)
-            print("111111111111111111111111111111",retptr)
+
+        # Check if the stack pointer has been increased
+        retptr = wasm_fun.wbindgen_add_to_stack_pointer(-16)
+        if retptr == 0:
+            # The stack pointer has not been increased, so the memory that was previously at the stack pointer is still accessible
             ptr0 = pass_string_to_wasm0(
                 prefix,
                 wasm_fun.wbindgen_malloc,
                 wasm_fun.wbindgen_realloc,
             )
-            print("2222222222222222222222222",ptr0)
-
             len0 = len(prefix)
-            print("3333333333333333333333333333333",len0)
+        else:
+            # The stack pointer has been increased, so the memory that was previously at the stack pointer is no longer accessible
+            ptr0 = None
+            len0 = 0
 
-            length = 32  # Renamed the variable to 'length'
-            result = PrivateKey.auxiliarydatahash_to_bech32(ptr0, len0, length)
-            print("44444444444444444444444444444",result)
+        # Convert the prefix string to bech32
+        length = 32  # Renamed the variable to 'length'
+        result = PrivateKey.auxiliarydatahash_to_bech32(ptr0, len0, length)
 
-            if result != 0:
-                ptr1 = get_string_from_wasm0(ptr0, len0)
-                len1 = len0
-            else:
-                raise Exception("Failed to convert auxiliary data hash to bech32")
-            print("mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm")
-            return ptr1
-        finally:
-            wasm_fun.wbindgen_add_to_stack_pointer(16)
-            wasm_fun.wbindgen_free(ptr1, len1)
+        if result != 0:
+            ptr1 = get_string_from_wasm0(ptr0, len0)
+            len1 = len0
+        else:
+            raise Exception("Failed to convert auxiliary data hash to bech32")
+
+        # Free the memory that was used for the prefix string
+        if ptr0 is not None:
+            wasm_fun.wbindgen_free(ptr0, len0)
+
+        return ptr1
 
 
 

@@ -13,7 +13,8 @@ asyncio.run(some_function())
 
 private_key = generate_private_key()
 
-print("=================================================final private key",private_key)
+data_string = ''.join(['{:02x}'.format(byte) for byte in private_key])
+print("=================================================final private key",data_string)
 
 with open("generatePrivateKey-1.sk", "w") as file:
-    file.write(private_key)
+    file.write(data_string)
