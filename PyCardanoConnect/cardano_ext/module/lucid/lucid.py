@@ -7,6 +7,16 @@ from ..utlis.utils import Utils
 from ..type.type import UTxO ,Provider
 from ..plutus.data import Data
 # from .lucid import Tx
+from cryptography.hazmat.primitives import serialization
+import hashlib
+
+
+class UTxO:
+    def __init__(self, tx_hash, index, amount):
+        self.tx_hash = tx_hash
+        self.index = index
+        self.amount = amount
+
 
 
 class Lucid:
@@ -16,6 +26,27 @@ class Lucid:
         self.provider = Provider
         self.network: str = "Mainnet"
         self.utils = None
+
+
+    def utxosAt(self, addressOrCredential):
+        # Replace the following code with your implementation to retrieve UTXOs
+        utxos = []
+
+        # Connect to the blockchain network or wallet provider API
+        blockchain_client = BlockchainClient()
+
+        # Retrieve UTXOs based on the given address or credential
+        retrieved_utxos = blockchain_client.get_utxos(addressOrCredential)
+
+        # Process the retrieved UTXO data
+        for utxo_data in retrieved_utxos:
+            tx_hash = utxo_data['tx_hash']
+            index = utxo_data['index']
+            amount = utxo_data['amount']
+            utxo = UTxO(tx_hash, index, amount)
+            utxos.append(utxo)
+
+        return utxos
 
     @staticmethod
     async def new(provider: Optional[str] = None, network: Optional[str] = None) -> "Lucid":
@@ -82,7 +113,6 @@ class Lucid:
     
     # def newTx(self) -> Tx:
     #     return Tx(self)
-    
     # add tx functions
 
 
@@ -93,3 +123,94 @@ class Lucid:
                 raise ValueError("This UTxO does not have a datum hash.")
             utxo.datum = await self.provider.getDatum(utxo.datumHash)
         return Data.from_raw(utxo.datum, type)
+    
+
+
+    def selectWalletFromPrivateKey(self, private_key):
+            priv = C.PrivateKey.from_bech32(private_key)
+            pub_key = priv.public_key()
+
+            # Calculate the hash of the public key
+            pub_key_bytes = pub_key.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            self.pub_key_hash = hashlib.blake2b(pub_key_bytes).digest()
+            
+            # Rest of your code for the selectWalletFromPrivateKey function
+
+
+    def getAddress(self):
+            stake_credential = C.StakeCredential.from_keyhash(self.pub_key_hash)
+            address = C.EnterpriseAddress.new(
+                1 if self.network == "Mainnet" else 0,
+                stake_credential
+            ).to_address().to_bech32()
+            return address
+        
+    def rewardAddress():
+            return None 
+
+    def getUtxos():
+            return self.utxosAt(paymentCredentialOf(self.wallet.address()))
+
+    def getUtxosCore():
+            utxos = self.utxosAt(paymentCredentialOf(self.wallet.address()))
+            coreUtxos = C.TransactionUnspentOutputs.new()
+            for utxo in utxos:
+                coreUtxos.add(utxoToCore(utxo))
+            return coreUtxos
+
+    def getDelegation():
+            return {'poolId': None, 'rewards': 0}
+
+    def signTx(tx):
+            witness = C.make_vkey_witness(
+                C.hash_transaction(tx.body()),
+                priv
+            )
+            txWitnessSetBuilder = C.TransactionWitnessSetBuilder.new()
+            txWitnessSetBuilder.add_vkey(witness)
+            return txWitnessSetBuilder.build()
+
+    def signMessage(address, payload):
+            addressDetails = self.utils.getAddressDetails(address)
+            paymentCredential, hexAddress = addressDetails['paymentCredential'], addressDetails['address']['hex']
+            keyHash = paymentCredential.hash
+
+            originalKeyHash = pubKeyHash.to_hex()
+
+            if not keyHash or keyHash != originalKeyHash:
+                raise Exception(f"Cannot sign message for address: {address}.")
+
+            return self.signData(hexAddress, payload, privateKey)
+
+    def submitTx(tx):
+            return self.provider.submitTx(tx)
+
+    self.wallet = {
+            'address': getAddress,
+            'rewardAddress': rewardAddress,
+            'getUtxos': getUtxos,
+            'getUtxosCore': getUtxosCore,
+            'getDelegation': getDelegation,
+            'signTx': signTx,
+            'signMessage': signMessage,
+            'submitTx': submitTx
+        }
+        return self
+
+    def getAddressDetails(self, address):
+        # Implement the getAddressDetails method
+        pass
+
+    def signData(self, hexAddress, payload, privateKey):
+        # Implement the signData method
+        pass
+
+    def utxosAt(self, paymentCredential):
+        # Implement the utxosAt method
+        pass
+
+    # def provider.submitTx(self, tx):
+    #     pass 

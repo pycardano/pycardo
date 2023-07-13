@@ -10,9 +10,10 @@ import struct
 
 import wasm
 
-
+from ......create_wallet import private_key
 from .wasms import wasm_fun
 
+from cryptography.hazmat.primitives.asymmetric import ec
 
 
 
@@ -2018,10 +2019,33 @@ class PrivateKey:
         return ptr1
 
 
+    @staticmethod
+    def from_bech32(bech_str):
+        try:
+            retptr = wasm_fun.wbindgen_add_to_stack_pointer(-16)
+            ptr0 = passArray8ToWasm0(bytes, wasm_fun.wbindgen_malloc)
+            len0 = len(bytes)
+            PrivateKey.initialize_private_key_from_bytes(retptr, ptr0, len0)  # Replace with the correct function name
+            r0 = get_int32_memory0()[int(retptr / 4 + 0)]
+            r1 = get_int32_memory0()[int(retptr / 4 + 1)]
+            r2 = get_int32_memory0()[int(retptr / 4 + 2)]
 
+            if r2:
+                raise take_object(r1)
+            return PrivateKey.__wrap(r0)
+        finally:
+            wasm_fun.wbindgen_add_to_stack_pointer(16)
 
+    def to_public(self):
+        from ......create_wallet import private_key
 
+        private_key_gen = ec.derive_private_key(
+            int.from_bytes(private_key, byteorder='big'),
+            ec.SECP256K1()
+        )
 
+        # Return the public key object
+        return PublicKey(private_key_gen)
 
     @staticmethod
     def generate_ed25519():
