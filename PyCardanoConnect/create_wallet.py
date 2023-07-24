@@ -18,3 +18,10 @@ print("=================================================final private key",data_
 
 with open("generatePrivateKey-1.sk", "w") as file:
     file.write(data_string)
+
+# # Select the wallet and derive the address
+address = Lucid.selectWalletFromPrivateKey(data_string)
+
+# Write the address to a file
+with open("generate wallet-1.sk", "w") as file:
+    file.write(address)

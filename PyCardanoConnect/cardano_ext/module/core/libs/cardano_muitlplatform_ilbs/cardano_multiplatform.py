@@ -10,7 +10,7 @@ import struct
 
 import wasm
 
-from ......create_wallet import private_key
+# from ......create_wallet import private_key
 from .wasms import wasm_fun
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -1871,7 +1871,68 @@ class Value:
         _assertClass(rhs_value, Value)
         ret = wasm.value_compare(self.ptr, rhs_value.ptr)
         return None if ret == 0xFFFFFF else ret
-    
+
+
+
+class TransactionUnspentOutputsFinalization:
+    def __init__(self, callback):
+        self.callback = callback
+        self.weakrefs = weakref.WeakValueDictionary()
+
+    def register(self, obj, ptr):
+        key = id(obj)
+        self.weakrefs[key] = (obj, ptr)
+
+    def unregister(self, obj):
+        key = id(obj)
+        if key in self.weakrefs:
+            del self.weakrefs[key]
+
+    def cleanup(self):
+        for obj, ptr in self.weakrefs.values():
+            self.callback(ptr)
+
+def cleanup_transaction_unspent_outputs(ptr):
+    wasm.__wbg_transactionunspentoutputs_free(ptr)
+
+transaction_unspent_outputs_finalization = TransactionUnspentOutputsFinalization(cleanup_transaction_unspent_outputs)
+
+class TransactionUnspentOutputs:
+    finalization_registry = TransactionUnspentOutputsFinalization(cleanup_transaction_unspent_outputs)
+
+    def __init__(self, ptr):
+        self.ptr = ptr
+        TransactionUnspentOutputs.finalization_registry.register(self, self.ptr)
+
+    def __del__(self):
+        TransactionUnspentOutputs.finalization_registry.unregister(self)
+
+    def __destroy_into_raw(self):
+        ptr = self.ptr
+        self.ptr = 0
+        return ptr
+
+    def free(self):
+        ptr = self.__destroy_into_raw()
+        wasm.__wbg_transactionunspentoutputs_free(ptr)
+
+    def certificates_new():
+        """Creates a new instance of the `TransactionUnspentOutputs` class."""
+
+        # Create a new instance of the `TransactionUnspentOutputs` class.
+        ptr = object()
+
+        # Initialize the instance.
+        TransactionUnspentOutputs.__init__(ptr)
+
+        # Return a pointer to the newly created instance.
+        return ptr
+
+    @staticmethod
+    def new():
+        ret = TransactionUnspentOutputs.certificates_new()
+        return TransactionUnspentOutputs(ret)
+
 
 # TransactionUnspent
 class PrivateKeyFinalization:
@@ -2217,11 +2278,294 @@ class TransactionInput:
         _assertClass(transaction_id, TransactionHash)
         _assertClass(index, BigNum)
         ret = wasm.transactioninput_new(transaction_id.ptr, index.ptr)
+
+
+
         return TransactionInput.__wrap(ret)
+    
+class TransactionWitnessSetBuilderFinalization:
+    def __init__(self, callback):
+        self.callback = callback
+        self.weakrefs = weakref.WeakValueDictionary()
+
+    def register(self, obj, ptr, key):
+        self.weakrefs[key] = (obj, ptr)
+
+    def unregister(self, key):
+        del self.weakrefs[key]
+
+    def cleanup(self):
+        for obj, ptr in self.weakrefs.values():
+            self.callback(ptr)
+def vkeywitness_key_len(ptr: int) -> int:
+  """Returns the vkey witness key length.
+
+  Args:
+    ptr: The pointer to the vkey witness object.
+
+  Returns:
+      The vkey witness key length.
+  """
+
+  key_len = struct.unpack(">I", ptr + 8)[0]
+  return key_len
+
+def vkeywitness_key(ptr: int) -> bytes:
+  """Returns the vkey witness key.
+
+  Args:
+    ptr: The pointer to the vkey witness object.
+
+  Returns:
+      The vkey witness key.
+  """
+
+  key_len = struct.unpack(">I", ptr + 8)[0]
+  return bytes(ptr + 12, key_len)
+class Vkeywitness:
+  """A Cardano vkey witness.
+
+  Args:
+    ptr: The pointer to the vkey witness object.
+  """
+
+  def __init__(self, ptr: int) -> None:
+    self.ptr = ptr
+
+  def __destroy_into_raw(self) -> int:
+    """Destroys the vkey witness object and returns the raw pointer.
+
+    Returns:
+      The raw pointer to the vkey witness object.
+    """
+
+    ptr = self.ptr
+    self.ptr = 0
+    return ptr
+
+  def free(self) -> None:
+    """Frees the memory associated with the vkey witness object.
+    """
+
+    ptr = self.__destroy_into_raw()
+    wasm.vkeywitness_free(ptr)
+
+  @staticmethod
+  def __wrap(ptr: int) -> "Vkeywitness":
+    """Wraps a raw pointer to a vkey witness object.
+
+    Args:
+      ptr: The raw pointer to the vkey witness object.
+
+    Returns:
+      The wrapped vkey witness object.
+    """
+
+    obj = object.__new__(Vkeywitness)
+    obj.ptr = ptr
+    return obj
+
+  def key(self) -> bytes:
+    """Returns the vkey witness key.
+
+    Returns:
+      The vkey witness key.
+    """
+
+    return vkeywitness_key(self.ptr)
+
+  def signature(self) -> bytes:
+    """Returns the vkey witness signature.
+
+    Returns:
+      The vkey witness signature.
+    """
+
+    return wasm.vkeywitness_signature(self.ptr)
+
+
+class TransactionWitnessSetBuilder:
+    """A Cardano transaction witness set builder.
+
+    Args:
+        ptr: The pointer to the transaction witness set builder object.
+    """
+
+    def __init__(self, ptr: int) -> None:
+        self.ptr = ptr
+
+    def __destroy_into_raw(self) -> int:
+        """Destroys the transaction witness set builder object and returns the raw pointer.
+
+        Returns:
+        The raw pointer to the transaction witness set builder object.
+        """
+
+        ptr = self.ptr
+        self.ptr = 0
+        return ptr
+
+    def free(self) -> None:
+        """Frees the memory associated with the transaction witness set builder object.
+        """
+
+        ptr = self.__destroy_into_raw()
+        wasm.transaction_witness_set_builder_free(ptr)
+
+    @staticmethod
+    def __wrap(ptr: int) -> "TransactionWitnessSetBuilder":
+        """Wraps a raw pointer to a transaction witness set builder object.
+
+        Args:
+        ptr: The raw pointer to the transaction witness set builder object.
+
+        Returns:
+        The wrapped transaction witness set builder object.
+        """
+
+        obj = object.__new__(TransactionWitnessSetBuilder)
+        obj.ptr = ptr
+        TransactionWitnessSetBuilderFinalization.register(obj, obj.ptr, obj)
+        return obj
+
+    def add_vkey(self, vkey: "Vkeywitness") -> None:
+        """Adds a vkey witness to the transaction witness set builder.
+
+        Args:
+        vkey: The vkey witness to add.
+        """
+
+        assert isinstance(vkey, Vkeywitness)
+        wasm.transaction_witness_set_builder_add_vkey(self.ptr, vkey.ptr)
+
+    def __new__(cls) -> "TransactionWitnessSetBuilder":
+        """Returns a new transaction witness set builder.
+
+        Returns:
+            The new transaction witness set builder.
+        """
+
+        ptr = transactionwitnesssetbuilder_new()
+        return cls.__wrap(ptr)
 
 
 
 
+class TransactionFinalization:
+    def __init__(self, callback):
+        self.callback = callback
+        self.weakrefs = weakref.WeakValueDictionary()
+
+    def register(self, obj, ptr, key):
+        self.weakrefs[key] = (obj, ptr)
+
+    def unregister(self, key):
+        del self.weakrefs[key]
+
+    def cleanup(self):
+        for obj, ptr in self.weakrefs.values():
+            self.callback(ptr)
+
+class Transaction:
+    def __init__(self, ptr):
+        self.ptr = ptr
+        TransactionInputFinalization.register(self, self.ptr, self)
+
+    @staticmethod
+    def __wrap(ptr):
+        obj = TransactionInput(ptr)
+        return obj
+
+    def __destroy_into_raw(self):
+        ptr = self.ptr
+        self.ptr = 0
+        TransactionInputFinalization.unregister(self)
+        return ptr
+
+    def free(self):
+        ptr = self.__destroy_into_raw()
+        wasm.__wbg_transactioninput_free(ptr)
+
+    def body(self):
+        """Returns the transaction body.
+
+        Returns:
+            The transaction body.
+        """
+
+        ret = TransactionBody.transaction_body(self.ptr)
+        return TransactionBody(ret[0:4], ret[4:])
+
+import struct
+
+class TransactionBody:
+  def transaction_body(ptr: int) -> bytes:
+        """Returns the transaction body.
+
+        Args:
+            ptr: The pointer to the transaction object.
+
+        Returns:
+            The transaction body.
+        """
+
+        header_len = struct.unpack(">I", ptr)[0]
+        payload_len = struct.unpack(">I", ptr + 4)[0]
+        return ptr + 8  # header_len + payload_len
+  
+  """A Cardano transaction body.
+
+  Args:
+    header: The transaction header.
+    payload: The transaction payload.
+  """
+
+  def __init__(self, header: bytes, payload: bytes) -> None:
+    self.header = header
+    self.payload = payload
+
+  def serialize(self) -> bytes:
+    """Serializes the transaction body.
+
+    Returns:
+      The serialized transaction body.
+    """
+
+    header_len = len(self.header)
+    payload_len = len(self.payload)
+    return struct.pack(">II", header_len, payload_len) + self.header + self.payload
+
+    
+
+import hashlib
+
+def hash_transaction(tx_body: bytes) -> bytes:
+  """Hashes a transaction body.
+
+  Args:
+    tx_body: The transaction body to hash.
+
+  Returns:
+    The transaction hash.
+  """
+
+  hash_digest = hashlib.sha256()
+  hash_digest.update(tx_body)
+  return hash_digest.digest()
+
+def hash_transaction(tx_body: TransactionBody) -> TransactionHash:
+  """Hashes a transaction body.
+
+  Args:
+    tx_body: The transaction body to hash.
+
+  Returns:
+    The transaction hash.
+  """
+
+  assert isinstance(tx_body, TransactionBody)
+  ret = hash_transaction(tx_body.ptr)
+  return TransactionHash(ret)
 
 
 # Script Ref
@@ -3145,6 +3489,63 @@ class TransactionBuilderConfig:
         ptr = self.__destroy_into_raw()
         wasm.__wbg_transactionbuilderconfig_free(ptr)
 
+    
+    
+
+
+    def transactionbuilderconfigbuilder_coins_per_utxo_byte(
+            ptr, coins_per_utxo_byte_ptr):
+        """Sets the coins per utxo byte in the TransactionBuilderConfigBuilder object.
+
+        Args:
+            ptr: The pointer to the TransactionBuilderConfigBuilder object.
+            coins_per_utxo_byte_ptr: The pointer to the BigNum object that
+            represents the coins per utxo byte.
+        """
+
+        # Check that the ptr argument is a valid pointer.
+        if not ptr:
+            raise ValueError("ptr is not a valid pointer")
+
+        # Check that the coins_per_utxo_byte_ptr argument is a valid pointer.
+        if not coins_per_utxo_byte_ptr:
+            raise ValueError("coins_per_utxo_byte_ptr is not a valid pointer")
+
+        # Set the coins per utxo byte in the TransactionBuilderConfigBuilder object.
+        _transactionbuilderconfigbuilder.set_coins_per_utxo_byte(
+            ptr, coins_per_utxo_byte_ptr)
+        
+    def _assert_class(object_, class_):
+        """Asserts that the object is of the specified class.
+
+        Args:
+            object_: The object to be checked.
+            class_: The class that the object is expected to be.
+
+        Raises:
+            ValueError: If the object is not of the specified class.
+        """
+
+        if not isinstance(object_, class_):
+            raise ValueError(
+                "Expected object to be of type {} but was {}".format(
+                    class_.__name__, type(object_).__name__))
+
+    def coins_per_utxo_byte(self, coins_per_utxo_byte):
+        """Sets the coins per utxo byte.
+
+        Args:
+            coins_per_utxo_byte: The coins per utxo byte.
+
+        Returns:
+            A reference to this TransactionBuilderConfigBuilder object.
+        """
+
+        TransactionBuilderConfig._assert_class(coins_per_utxo_byte, BigNum)
+        ret = TransactionBuilderConfig.transactionbuilderconfigbuilder_coins_per_utxo_byte(
+            self.ptr, coins_per_utxo_byte.ptr)
+        return TransactionBuilderConfigBuilder.__wrap__(ret)
+
 
 #  Ed25519Signature 
 class Ed25519KeyHashesFinalization:
@@ -3280,6 +3681,44 @@ class Ed25519KeyHashes:
     def add(self, elem):
         _assertClass(elem, Ed25519KeyHash)
         wasm.ed25519keyhashes_add(self.ptr, elem.ptr)
+
+class TransactionBuilderConfigBuilderFinalization:
+    def __init__(self, callback):
+        self.callback = callback
+        self.weakrefs = weakref.WeakValueDictionary()
+
+    def register(self, obj, ptr):
+        self.weakrefs[ptr] = obj
+
+    def unregister(self, ptr):
+        del self.weakrefs[ptr]
+
+    def cleanup(self):
+        for ptr, obj in self.weakrefs.items():
+            self.callback(ptr)
+
+class TransactionBuilderConfigBuilder:
+    def __init__(self, ptr):
+        self.ptr = ptr
+        TransactionBuilderConfigBuilderFinalization.register(self, self.ptr)
+
+    def __destroy_into_raw(self):
+        ptr = self.ptr
+        self.ptr = 0
+        TransactionBuilderConfigBuilderFinalization.unregister(self)
+        return ptr
+
+    # def free(self):
+    #     ptr = self.__destroy_into_raw()
+    #     # Call the equivalent of wasm.__wbg_transactionbuilderconfigbuilder_free(ptr)
+    #     __wbg_transactionbuilderconfigbuilder_free(ptr)
+    def transactionbuilderconfigbuilder_new():
+                    return TransactionBuilderConfigBuilder()
+
+    @classmethod
+    def new(cls):
+        ret = TransactionBuilderConfigBuilder.transactionbuilderconfigbuilder_new()
+        return cls(ret)
 
 
 # Public Key
@@ -5177,3 +5616,8 @@ class PointerAddress:
         return None if ret == 0 else PointerAddress.__wrap(ret)
 
 
+def make_vkey_witness(tx_body_hash, sk):
+    assert isinstance(tx_body_hash, TransactionHash)
+    assert isinstance(sk, PrivateKey)
+    ret = wasm.make_vkey_witness(tx_body_hash.ptr, sk.ptr)
+    return Vkeywitness.__wrap(ret)

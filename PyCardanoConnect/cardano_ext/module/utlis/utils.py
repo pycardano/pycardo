@@ -385,4 +385,10 @@ def generate_private_key():
     return private_key
 
 
+def payment_credential_of(address):
+    address_details = getAddressDetails(address)
+    payment_credential = address_details["paymentCredential"]
+    if not payment_credential:
+        raise Exception("The specified address does not contain a payment credential.")
+    return payment_credential
 

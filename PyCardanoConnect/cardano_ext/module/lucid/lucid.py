@@ -4,11 +4,14 @@ from ..provider.emulator import Emulator
 from ..plutus.time import SLOT_CONFIG_NETWORK
 from ..utlis.cost_model import create_cost_models
 from ..utlis.utils import Utils
+from ..utlis.utils import payment_credential_of,utxoToCore
+
 from ..type.type import UTxO ,Provider
 from ..plutus.data import Data
 # from .lucid import Tx
 from cryptography.hazmat.primitives import serialization
 import hashlib
+from ..misc.sign_data import sign_data
 
 
 class UTxO:
@@ -21,41 +24,22 @@ class UTxO:
 
 class Lucid:
     def __init__(self):
-        self.txBuilderConfig: Optional[C.TransactionBuilderConfig] = None
+        self.txBuilderConfig = None
         self.wallet = None
-        self.provider = Provider
-        self.network: str = "Mainnet"
+        self.provider = None
+        self.network = "Mainnet"
         self.utils = None
+        self.pub_key_hash = None
 
-
-    def utxosAt(self, addressOrCredential):
-        # Replace the following code with your implementation to retrieve UTXOs
-        utxos = []
-
-        # Connect to the blockchain network or wallet provider API
-        blockchain_client = BlockchainClient()
-
-        # Retrieve UTXOs based on the given address or credential
-        retrieved_utxos = blockchain_client.get_utxos(addressOrCredential)
-
-        # Process the retrieved UTXO data
-        for utxo_data in retrieved_utxos:
-            tx_hash = utxo_data['tx_hash']
-            index = utxo_data['index']
-            amount = utxo_data['amount']
-            utxo = UTxO(tx_hash, index, amount)
-            utxos.append(utxo)
-
-        return utxos
-
-    @staticmethod
-    async def new(provider: Optional[str] = None, network: Optional[str] = None) -> "Lucid":
+    # ... (Other methods, constructor, etc.) ...
+    async def new(provider=None, network=None):
         lucid = Lucid()
         if network:
             lucid.network = network
+
         if provider:
-            lucid.provider = provider
-            protocolParameters = await provider.getProtocolParameters()
+            lucid.provider = Provider
+            protocol_parameters = await Provider.getProtocolParameters()
 
             if isinstance(lucid.provider, Emulator):
                 lucid.network = "Custom"
@@ -65,152 +49,128 @@ class Lucid:
                     "slotLength": 1000,
                 }
 
-            slotConfig = SLOT_CONFIG_NETWORK[lucid.network]
-            lucid.txBuilderConfig = {
-                "coins_per_utxo_byte": int(protocolParameters.coinsPerUtxoByte),
-                "fee_algo": C.LinearFee(
-                    int(protocolParameters.minFeeA),
-                    int(protocolParameters.minFeeB),
-                ),
-                "key_deposit": int(protocolParameters.keyDeposit),
-                "pool_deposit": int(protocolParameters.poolDeposit),
-                "max_tx_size": protocolParameters.maxTxSize,
-                "max_value_size": protocolParameters.maxValSize,
-                "collateral_percentage": protocolParameters.collateralPercentage,
-                "max_collateral_inputs": protocolParameters.maxCollateralInputs,
-                "max_tx_ex_units": {
-                    "max_tx_ex_mem": int(protocolParameters.maxTxExMem),
-                    "max_tx_ex_steps": int(protocolParameters.maxTxExSteps),
-                },
-                "ex_unit_prices": {
-                    "price_mem": protocolParameters.priceMem,
-                    "price_step": protocolParameters.priceStep,
-                },
-                "slot_config": {
-                    "zero_time": int(slotConfig.zeroTime),
-                    "zero_slot": int(slotConfig.zeroSlot),
-                    "slot_length": slotConfig.slotLength,
-                },
-                "blockfrost": {
-                    "url": (provider.url or "") + "/utils/txs/evaluate",
-                    "project_id": provider.projectId or "",
-                },
-                "costmdls": create_cost_models(protocolParameters.costModels),
-            }
+            slot_config = SLOT_CONFIG_NETWORK.get(lucid.network, {})
+            lucid.txBuilderConfig = C.TransactionBuilderConfigBuilder.new() \
+                C.TransactionBuilderConfig.coins_per_utxo_byte(C.BigNum.from_str(str(protocol_parameters.coinsPerUtxoByte))) \
+                .fee_algo(C.LinearFee.new(
+                    C.BigNum.from_str(str(protocol_parameters.minFeeA)),
+                    C.BigNum.from_str(str(protocol_parameters.minFeeB))
+                )) \
+                .key_deposit(C.BigNum.from_str(str(protocol_parameters.keyDeposit))) \
+                .pool_deposit(C.BigNum.from_str(str(protocol_parameters.poolDeposit))) \
+                .max_tx_size(protocol_parameters.maxTxSize) \
+                .max_value_size(protocol_parameters.maxValSize) \
+                .collateral_percentage(protocol_parameters.collateralPercentage) \
+                .max_collateral_inputs(protocol_parameters.maxCollateralInputs) \
+                .max_tx_ex_units(C.ExUnits.new(
+                    C.BigNum.from_str(str(protocol_parameters.maxTxExMem)),
+                    C.BigNum.from_str(str(protocol_parameters.maxTxExSteps))
+                )) \
+                .ex_unit_prices(C.ExUnitPrices.from_float(
+                    protocol_parameters.priceMem,
+                    protocol_parameters.priceStep
+                )) \
+                .slot_config(
+                    C.BigNum.from_str(str(slot_config.get("zeroTime", ""))),
+                    C.BigNum.from_str(str(slot_config.get("zeroSlot", ""))),
+                    slot_config.get("slotLength", 0)
+                ) \
+                .blockfrost(
+                    C.Blockfrost.new(
+                        ((provider.url or "") + "/utils/txs/evaluate") if hasattr(provider, "url") else "",
+                        (provider.projectId or "") if hasattr(provider, "projectId") else ""
+                    )
+                ) \
+                .costmdls(createCostModels(protocol_parameters.costModels)) \
+                .build()
+
         lucid.utils = Utils(lucid)
         return lucid
-    
-    async def switchProvider(self, provider, network):
-        if self.network == "Custom":
-            raise Exception("Cannot switch when on custom network.")
-        
-        lucid = await Lucid.new(provider, network)
-        self.txBuilderConfig = lucid.txBuilderConfig
-        self.provider = provider or self.provider
-        self.network = network or self.network
-        self.wallet = lucid.wallet
-        return self
-    
-    # def newTx(self) -> Tx:
-    #     return Tx(self)
-    # add tx functions
-
-
-
-    async def datumOf(self, utxo:UTxO, type=None):
-        if not utxo.datum:
-            if not utxo.datumHash:
-                raise ValueError("This UTxO does not have a datum hash.")
-            utxo.datum = await self.provider.getDatum(utxo.datumHash)
-        return Data.from_raw(utxo.datum, type)
-    
-
 
     def selectWalletFromPrivateKey(self, private_key):
-            priv = C.PrivateKey.from_bech32(private_key)
-            pub_key = priv.public_key()
+        priv = C.PrivateKey.from_bech32(private_key)
+        pub_key_hash = priv.to_public().hash()
 
-            # Calculate the hash of the public key
-            pub_key_bytes = pub_key.public_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-            self.pub_key_hash = hashlib.blake2b(pub_key_bytes).digest()
-            
-            # Rest of your code for the selectWalletFromPrivateKey function
+        # Calculate the hash of the public key
+        pub_key_bytes = pub_key_hash.public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        self.pub_key_hash = hashlib.blake2b(pub_key_bytes).digest()
 
-
-    def getAddress(self):
-            stake_credential = C.StakeCredential.from_keyhash(self.pub_key_hash)
-            address = C.EnterpriseAddress.new(
-                1 if self.network == "Mainnet" else 0,
-                stake_credential
-            ).to_address().to_bech32()
-            return address
-        
-    def rewardAddress():
-            return None 
-
-    def getUtxos():
-            return self.utxosAt(paymentCredentialOf(self.wallet.address()))
-
-    def getUtxosCore():
-            utxos = self.utxosAt(paymentCredentialOf(self.wallet.address()))
-            coreUtxos = C.TransactionUnspentOutputs.new()
-            for utxo in utxos:
-                coreUtxos.add(utxoToCore(utxo))
-            return coreUtxos
-
-    def getDelegation():
-            return {'poolId': None, 'rewards': 0}
-
-    def signTx(tx):
-            witness = C.make_vkey_witness(
-                C.hash_transaction(tx.body()),
-                priv
-            )
-            txWitnessSetBuilder = C.TransactionWitnessSetBuilder.new()
-            txWitnessSetBuilder.add_vkey(witness)
-            return txWitnessSetBuilder.build()
-
-    def signMessage(address, payload):
-            addressDetails = self.utils.getAddressDetails(address)
-            paymentCredential, hexAddress = addressDetails['paymentCredential'], addressDetails['address']['hex']
-            keyHash = paymentCredential.hash
-
-            originalKeyHash = pubKeyHash.to_hex()
-
-            if not keyHash or keyHash != originalKeyHash:
-                raise Exception(f"Cannot sign message for address: {address}.")
-
-            return self.signData(hexAddress, payload, privateKey)
-
-    def submitTx(tx):
-            return self.provider.submitTx(tx)
-
-    self.wallet = {
-            'address': getAddress,
-            'rewardAddress': rewardAddress,
-            'getUtxos': getUtxos,
-            'getUtxosCore': getUtxosCore,
-            'getDelegation': getDelegation,
-            'signTx': signTx,
-            'signMessage': signMessage,
-            'submitTx': submitTx
+        self.wallet = {
+            "address": self.getAddress,
+            "rewardAddress": self.rewardAddress,
+            "getUtxos": self.getUtxos,
+            "getUtxosCore": self.getUtxosCore,
+            "getDelegation": self.getDelegation,
+            "signTx": self.signTx,
+            "signMessage": self.sign_message(),
+            "submitTx": self.submit_tx,
         }
         return self
 
-    def getAddressDetails(self, address):
-        # Implement the getAddressDetails method
-        pass
+    def getAddress(self):
+        stake_credential = C.StakeCredential.from_keyhash(self.pub_key_hash)
+        address = C.EnterpriseAddress.new(
+            1 if self.network == "Mainnet" else 0,
+            stake_credential
+        ).to_address().to_bech32()
+        return address
 
-    def signData(self, hexAddress, payload, privateKey):
-        # Implement the signData method
-        pass
+    def rewardAddress(self):
+        return None
 
-    def utxosAt(self, paymentCredential):
-        # Implement the utxosAt method
-        pass
+    async def getUtxos(self):
+        address = self.getAddress()
+        payment_credential = payment_credential_of(address)
+        return await self.utxosAt(payment_credential)
 
-    # def provider.submitTx(self, tx):
-    #     pass 
+    def getUtxosCore(self):
+        address = self.getAddress()
+        utxos = self.utxosAt(payment_credential_of(address))
+        coreUtxos = C.TransactionUnspentOutputs.new()
+        for utxo in utxos:
+            coreUtxos.add(utxoToCore(utxo))
+        return coreUtxos
+
+    def getDelegation(self):
+        return {'poolId': None, 'rewards': 0}
+
+    def signTx(self, tx: C.Transaction, priv: bytes):
+        """Signs a transaction with the given private key.
+
+        Args:
+            tx: The transaction to sign.
+            priv: The private key to use for signing.
+
+        Returns:
+            The signed transaction witness set.
+        """
+
+        witness = C.make_vkey_witness(
+            C.hash_transaction(tx.body()),
+            priv,
+        )
+        tx_witness_set_builder = C.TransactionWitnessSetBuilder.new()
+        C.TransactionWitnessSetBuilder.add_vkey(witness)
+        return tx_witness_set_builder.build()
+
+    def sign_message(self,private_key):
+        async def sign_message(address, payload):
+            address_details = self.utils.get_address_details(address)
+            payment_credential, hex_address = address_details.payment_credential, address_details.address.hex
+
+            key_hash = payment_credential.hash if payment_credential else None
+            original_key_hash = self.pub_key_hash.hex()
+
+            if not key_hash or key_hash != original_key_hash:
+                raise Exception(f"Cannot sign message for address: {address}")
+
+            return sign_data(hex_address, payload, private_key)
+        return sign_message
+
+    async def submit_tx(self, tx):
+        return await self.provider.submit_tx(tx)
+
+    
